@@ -1,16 +1,15 @@
 'use strict';
 
-const Thread = require('../models/thread');
+const Thread = require('../models/threadModel');
 
 module.exports = {
-
-  // ➤ POST thread
-  createThread: async (req, res) => {
+  // CREATE THREAD
+  async createThread(req, res) {
     try {
       const board = req.params.board;
       const { text, delete_password } = req.body;
 
-      const thread = await Thread.create({
+      const newThread = new Thread({
         board,
         text,
         delete_password,
@@ -20,15 +19,16 @@ module.exports = {
         replies: []
       });
 
-      // FCC requires redirect
-      res.redirect(`/api/threads/${board}`);
+      await newThread.save();
+      res.json(newThread);
     } catch (err) {
-      res.send('Server error');
+      console.error('Error al crear thread:', err);
+      res.status(500).send('Server error');
     }
   },
 
-  // ➤ GET threads (show last 10 threads with last 3 replies)
-  getThreads: async (req, res) => {
+  // GET THREADS
+  async getThreads(req, res) {
     try {
       const board = req.params.board;
 
@@ -37,48 +37,47 @@ module.exports = {
         .limit(10)
         .lean();
 
-      const cleaned = threads.map(t => {
-        delete t.delete_password;
-        delete t.reported;
-
-        t.replies = t.replies
+      const cleaned = threads.map(t => ({
+        _id: t._id,
+        text: t.text,
+        created_on: t.created_on,
+        bumped_on: t.bumped_on,
+        replies: t.replies
           .slice(-3)
           .map(r => ({
             _id: r._id,
             text: r.text,
             created_on: r.created_on
-          }));
-
-        return t;
-      });
+          }))
+      }));
 
       res.json(cleaned);
     } catch (err) {
-      res.send('Server error');
+      console.error('Error al obtener threads:', err);
+      res.status(500).send('Server error');
     }
   },
 
-  // ➤ DELETE thread
-  deleteThread: async (req, res) => {
+  // DELETE THREAD
+  async deleteThread(req, res) {
     try {
       const { thread_id, delete_password } = req.body;
 
       const thread = await Thread.findById(thread_id);
-      if (!thread) return res.send('incorrect password');
 
-      if (thread.delete_password !== delete_password)
-        return res.send('incorrect password');
+      if (!thread) return res.send('Thread not found');
+      if (thread.delete_password !== delete_password) return res.send('incorrect password');
 
       await Thread.findByIdAndDelete(thread_id);
-
       res.send('success');
     } catch (err) {
-      res.send('incorrect password');
+      console.error('Error al borrar thread:', err);
+      res.status(500).send('Server error');
     }
   },
 
-  // ➤ PUT report thread
-  reportThread: async (req, res) => {
+  // REPORT THREAD
+  async reportThread(req, res) {
     try {
       const { thread_id } = req.body;
 
@@ -90,8 +89,8 @@ module.exports = {
 
       res.send('reported');
     } catch (err) {
-      res.send('Server error');
+      console.error('Error al reportar thread:', err);
+      res.status(500).send('Server error');
     }
   }
-
 };

@@ -1,86 +1,90 @@
 'use strict';
 
-const Thread = require('../models/thread');
+const Thread = require('../models/threadModel');
 
 module.exports = {
-
-  // ➤ POST reply
-  createReply: async (req, res) => {
+  // CREATE REPLY
+  async createReply(req, res) {
     try {
       const board = req.params.board;
       const { thread_id, text, delete_password } = req.body;
 
-      const reply = {
+      const thread = await Thread.findOne({ _id: thread_id, board });
+      if (!thread) return res.send('Thread not found');
+
+      const newReply = {
         text,
         delete_password,
         created_on: new Date(),
         reported: false
       };
 
-      const thread = await Thread.findById(thread_id);
-      if (!thread) return res.send('Thread not found');
-
-      thread.replies.push(reply);
+      thread.replies.push(newReply);
       thread.bumped_on = new Date();
+
       await thread.save();
-
-      // FCC redirect (IMPORTANTE)
-      res.redirect(`/b/${board}/${thread_id}`);
-    } catch (err) {
-      res.send('Server error');
-    }
-  },
-
-  // ➤ GET thread with ALL replies
-  getThreadWithReplies: async (req, res) => {
-    try {
-      const { thread_id } = req.query;
-
-      const thread = await Thread.findById(thread_id).lean();
-      if (!thread) return res.send('Thread not found');
-
-      // FCC requires hiding these fields
-      delete thread.delete_password;
-      delete thread.reported;
-
-      // FCC requires showing ALL replies, but hide sensitive fields
-      thread.replies = thread.replies.map(r => ({
-        _id: r._id,
-        text: r.text,
-        created_on: r.created_on
-      }));
-
       res.json(thread);
     } catch (err) {
-      res.send('Server error');
+      console.error('Error al crear reply:', err);
+      res.status(500).send('Server error');
     }
   },
 
-  // ➤ DELETE reply
-  deleteReply: async (req, res) => {
+  // GET THREAD WITH ALL REPLIES
+  async getThreadWithReplies(req, res) {
+    try {
+      const board = req.params.board;
+      const thread_id = req.query.thread_id;
+
+      const thread = await Thread.findOne({ _id: thread_id, board }).lean();
+      if (!thread) return res.send('Thread not found');
+
+      const cleaned = {
+        _id: thread._id,
+        text: thread.text,
+        created_on: thread.created_on,
+        bumped_on: thread.bumped_on,
+        replies: thread.replies.map(r => ({
+          _id: r._id,
+          text: r.text,
+          created_on: r.created_on
+        }))
+      };
+
+      res.json(cleaned);
+    } catch (err) {
+      console.error('Error al obtener replies:', err);
+      res.status(500).send('Server error');
+    }
+  },
+
+  // DELETE REPLY (soft delete)
+  async deleteReply(req, res) {
     try {
       const { thread_id, reply_id, delete_password } = req.body;
 
       const thread = await Thread.findById(thread_id);
-      if (!thread) return res.send('incorrect password');
+      if (!thread) return res.send('Thread not found');
 
       const reply = thread.replies.id(reply_id);
-      if (!reply) return res.send('incorrect password');
+      if (!reply) return res.send('Reply not found');
 
-      if (reply.delete_password !== delete_password)
+      if (reply.delete_password !== delete_password) {
         return res.send('incorrect password');
+      }
 
       reply.text = '[deleted]';
       await thread.save();
 
       res.send('success');
     } catch (err) {
-      res.send('incorrect password');
+      console.error('Error al borrar reply:', err);
+      res.status(500).send('Server error');
     }
   },
 
-  // ➤ PUT report reply
-  reportReply: async (req, res) => {
+  // REPORT REPLY
+  async reportReply(req, res) {
     try {
       const { thread_id, reply_id } = req.body;
 
@@ -88,16 +92,15 @@ module.exports = {
       if (!thread) return res.send('Thread not found');
 
       const reply = thread.replies.id(reply_id);
-      if (!reply) return res.send('Thread not found');
+      if (!reply) return res.send('Reply not found');
 
       reply.reported = true;
       await thread.save();
 
-      // FCC requires EXACT text
       res.send('reported');
     } catch (err) {
-      res.send('Server error');
+      console.error('Error al reportar reply:', err);
+      res.status(500).send('Server error');
     }
   }
-
 };

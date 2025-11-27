@@ -1,7 +1,7 @@
 'use strict';
 require('dotenv').config();
+
 const express = require('express');
-const bodyParser = require('body-parser');
 const cors = require('cors');
 const helmet = require('helmet');
 const mongoose = require('mongoose');
@@ -13,16 +13,20 @@ const runner = require('./test-runner');
 const app = express();
 
 // Seguridad
-app.use(helmet({
-  contentSecurityPolicy: false
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: false
+  })
+);
 
 app.use('/public', express.static(process.cwd() + '/public'));
 app.use(cors({ origin: '*' }));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 
-// Front-end
+// Body parsing
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Frontend FCC
 app.route('/b/:board/')
   .get((req, res) => res.sendFile(process.cwd() + '/views/board.html'));
 
@@ -32,19 +36,18 @@ app.route('/b/:board/:threadid')
 app.route('/')
   .get((req, res) => res.sendFile(process.cwd() + '/views/index.html'));
 
-// 🔥 PRIMERO conectar MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => {
-  console.log("Connected to MongoDB");
+// Rutas FCC Y API deben cargarse ANTES incluso si Mongo no conecta
+fccTestingRoutes(app);
+apiRoutes(app);
 
-  // 🔥 LUEGO cargar rutas FCC y API
-  fccTestingRoutes(app);
-  apiRoutes(app);
-})
-.catch(err => console.error("MongoDB error:", err));
+// -- CONNECT MONGO --
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+  })
+  .then(() => console.log("Connected to MongoDB"))
+  .catch(err => console.error("MongoDB error:", err));
 
 // 404
 app.use((req, res) => {
