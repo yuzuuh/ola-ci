@@ -1,6 +1,6 @@
 'use strict';
 
-const Thread = require('../models/threadModel');
+const Thread = require('../models/thread');
 
 module.exports = {
   // CREATE REPLY
