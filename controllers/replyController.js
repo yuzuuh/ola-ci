@@ -14,20 +14,20 @@ module.exports = {
         text,
         delete_password,
         created_on: new Date(),
-        bumped_on: new Date(),
         reported: false
       };
 
       const thread = await Thread.findById(thread_id);
-      if (!thread) return res.status(404).send('Thread not found');
+      if (!thread) return res.send('Thread not found');
 
       thread.replies.push(reply);
       thread.bumped_on = new Date();
       await thread.save();
 
-      res.json(thread);
+      // FCC redirect (IMPORTANTE)
+      res.redirect(`/b/${board}/${thread_id}`);
     } catch (err) {
-      res.status(500).send('Server error');
+      res.send('Server error');
     }
   },
 
@@ -39,14 +39,15 @@ module.exports = {
       const thread = await Thread.findById(thread_id).lean();
       if (!thread) return res.send('Thread not found');
 
+      // FCC requires hiding these fields
       delete thread.delete_password;
       delete thread.reported;
 
+      // FCC requires showing ALL replies, but hide sensitive fields
       thread.replies = thread.replies.map(r => ({
         _id: r._id,
         text: r.text,
-        created_on: r.created_on,
-        bumped_on: r.bumped_on
+        created_on: r.created_on
       }));
 
       res.json(thread);
@@ -92,6 +93,7 @@ module.exports = {
       reply.reported = true;
       await thread.save();
 
+      // FCC requires EXACT text
       res.send('reported');
     } catch (err) {
       res.send('Server error');

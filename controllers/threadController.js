@@ -16,16 +16,18 @@ module.exports = {
         delete_password,
         created_on: new Date(),
         bumped_on: new Date(),
+        reported: false,
         replies: []
       });
 
-      res.json(thread);
+      // FCC requires redirect
+      res.redirect(`/api/threads/${board}`);
     } catch (err) {
-      res.status(500).send('Server error');
+      res.send('Server error');
     }
   },
 
-  // ➤ GET threads (10 threads + 3 replies)
+  // ➤ GET threads (show last 10 threads with last 3 replies)
   getThreads: async (req, res) => {
     try {
       const board = req.params.board;
@@ -35,25 +37,24 @@ module.exports = {
         .limit(10)
         .lean();
 
-      // Ocultar datos sensibles
-      threads.forEach(t => {
+      const cleaned = threads.map(t => {
         delete t.delete_password;
         delete t.reported;
 
-        // Solo 3 respuestas más recientes
         t.replies = t.replies
           .slice(-3)
           .map(r => ({
             _id: r._id,
             text: r.text,
-            created_on: r.created_on,
-            bumped_on: r.bumped_on
+            created_on: r.created_on
           }));
+
+        return t;
       });
 
-      res.json(threads);
+      res.json(cleaned);
     } catch (err) {
-      res.status(500).send('Server error');
+      res.send('Server error');
     }
   },
 
@@ -63,12 +64,13 @@ module.exports = {
       const { thread_id, delete_password } = req.body;
 
       const thread = await Thread.findById(thread_id);
-
       if (!thread) return res.send('incorrect password');
+
       if (thread.delete_password !== delete_password)
         return res.send('incorrect password');
 
       await Thread.findByIdAndDelete(thread_id);
+
       res.send('success');
     } catch (err) {
       res.send('incorrect password');
@@ -78,13 +80,17 @@ module.exports = {
   // ➤ PUT report thread
   reportThread: async (req, res) => {
     try {
-      await Thread.findByIdAndUpdate(req.body.thread_id, {
-        reported: true
-      });
+      const { thread_id } = req.body;
+
+      const thread = await Thread.findById(thread_id);
+      if (!thread) return res.send('Thread not found');
+
+      thread.reported = true;
+      await thread.save();
 
       res.send('reported');
     } catch (err) {
-      res.status(500).send('Server error');
+      res.send('Server error');
     }
   }
 
