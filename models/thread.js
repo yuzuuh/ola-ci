@@ -6,8 +6,8 @@ const Schema = mongoose.Schema;
 const replySchema = new Schema({
   text: String,
   created_on: { type: Date, default: Date.now },
-  reported: { type: Boolean, default: false },
-  delete_password: String
+  delete_password: String,
+  reported: { type: Boolean, default: false }
 });
 
 const threadSchema = new Schema({

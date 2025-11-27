@@ -2,67 +2,90 @@
 
 const Thread = require('../models/thread');
 
-exports.createThread = async (req, res) => {
-  const board = req.params.board;
-  const { text, delete_password } = req.body;
+module.exports = {
 
-  const newThread = new Thread({
-    board,
-    text,
-    delete_password,
-    created_on: new Date(),
-    bumped_on: new Date(),
-    reported: false,
-    replies: []
-  });
+  // ➤ POST thread
+  createThread: async (req, res) => {
+    try {
+      const board = req.params.board;
+      const { text, delete_password } = req.body;
 
-  await newThread.save();
+      const thread = await Thread.create({
+        board,
+        text,
+        delete_password,
+        created_on: new Date(),
+        bumped_on: new Date(),
+        replies: []
+      });
 
-  // Required by FCC
-  return res.redirect(303, `/b/${board}/`);
-};
+      res.json(thread);
+    } catch (err) {
+      res.status(500).send('Server error');
+    }
+  },
 
-exports.getThreads = async (req, res) => {
-  const board = req.params.board;
+  // ➤ GET threads (10 threads + 3 replies)
+  getThreads: async (req, res) => {
+    try {
+      const board = req.params.board;
 
-  let threads = await Thread.find({ board })
-    .sort({ bumped_on: -1 })
-    .limit(10)
-    .lean();
+      const threads = await Thread.find({ board })
+        .sort({ bumped_on: -1 })
+        .limit(10)
+        .lean();
 
-  threads = threads.map(t => ({
-    _id: t._id,
-    text: t.text,
-    created_on: t.created_on,
-    bumped_on: t.bumped_on,
-    replies: t.replies
-      .slice(-3)
-      .map(r => ({
-        _id: r._id,
-        text: r.text,
-        created_on: r.created_on
-      }))
-  }));
+      // Ocultar datos sensibles
+      threads.forEach(t => {
+        delete t.delete_password;
+        delete t.reported;
 
-  res.json(threads);
-};
+        // Solo 3 respuestas más recientes
+        t.replies = t.replies
+          .slice(-3)
+          .map(r => ({
+            _id: r._id,
+            text: r.text,
+            created_on: r.created_on,
+            bumped_on: r.bumped_on
+          }));
+      });
 
-exports.deleteThread = async (req, res) => {
-  const { thread_id, delete_password } = req.body;
+      res.json(threads);
+    } catch (err) {
+      res.status(500).send('Server error');
+    }
+  },
 
-  const thread = await Thread.findById(thread_id);
-  if (!thread) return res.send("incorrect password");
+  // ➤ DELETE thread
+  deleteThread: async (req, res) => {
+    try {
+      const { thread_id, delete_password } = req.body;
 
-  if (thread.delete_password !== delete_password)
-    return res.send("incorrect password");
+      const thread = await Thread.findById(thread_id);
 
-  await Thread.findByIdAndDelete(thread_id);
-  res.send("success");
-};
+      if (!thread) return res.send('incorrect password');
+      if (thread.delete_password !== delete_password)
+        return res.send('incorrect password');
 
-exports.reportThread = async (req, res) => {
-  const { thread_id } = req.body;
+      await Thread.findByIdAndDelete(thread_id);
+      res.send('success');
+    } catch (err) {
+      res.send('incorrect password');
+    }
+  },
 
-  await Thread.findByIdAndUpdate(thread_id, { reported: true });
-  res.send("reported");
+  // ➤ PUT report thread
+  reportThread: async (req, res) => {
+    try {
+      await Thread.findByIdAndUpdate(req.body.thread_id, {
+        reported: true
+      });
+
+      res.send('reported');
+    } catch (err) {
+      res.status(500).send('Server error');
+    }
+  }
+
 };
